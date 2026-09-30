@@ -14,8 +14,6 @@ from timers._util import ceil_int
 
 ALERT_ID = "daynight"
 
-_prev_daytime: bool | None = None     # прошлый тик - чтобы поймать сам момент смены
-
 
 def _hint(name: str, left: float) -> tuple[str, bool]:
     urgent = left <= settings.URGENT_SECONDS
@@ -58,10 +56,7 @@ def _by_clock(state: Any, now: float) -> None:
 
 
 def tick(state: Any) -> None:
-    global _prev_daytime
-
     if not state.in_game():
-        _prev_daytime = None
         state.remove(ALERT_ID)
         return
 
@@ -69,11 +64,8 @@ def tick(state: Any) -> None:
     daytime = state.is_daytime()
 
     if daytime is None:                      # GSI не дал daytime - считаем по часам
-        _prev_daytime = None
         _by_clock(state, now)
         return
-
-    _prev_daytime = daytime                  # переходы больше не нужны - плашка считается от NIGHT_START
 
     if daytime is False:                     # сейчас ночь
         _night_block(state, now)

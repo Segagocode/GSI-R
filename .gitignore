@@ -1,1 +1,16 @@
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# отладочные дампы GSI (содержат твой steamid)
+logs/
+*.log
+
+# правки gsi_setup
+*.bak
+
+# редакторы
+.vscode/
+.idea/

@@ -70,16 +70,19 @@ class GameState:
         """Вызывается сервером на каждый POST от Dota (их ~10 в секунду)."""
         with self._lock:
             now = time.monotonic()
-            self._payload = payload if isinstance(payload, dict) else {}
+            incoming = payload if isinstance(payload, dict) else {}
             self._has_payload = True
             self._last_packet_at = now
 
-            game_map = self._payload.get("map") or {}
-            # heartbeat-пакеты Dota приходит раз в 30 с БЕЗ секции map -
-            # состояние матча из них неизвестно, сохраняем прошлое.
+            game_map = incoming.get("map") or {}
+            # heartbeat-пакеты Dota приходят раз в 30 с БЕЗ секции map (и в меню,
+            # и при загрузке): состояние матча из них неизвестно, поэтому прошлый
+            # пакет сохраняем целиком. Раньше payload затирался, и на один тик
+            # пропадали герой, предметы и способности (мигали подсказки о закупе).
             if not game_map:
                 return
 
+            self._payload = incoming
             game_state = str(game_map.get("game_state") or "")
             paused_now = bool(game_map.get("paused"))
             in_progress = GAME_STATE_IN_PROGRESS in game_state

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 import settings
-from timers._util import in_seconds, next_after
+from timers._util import current_or_next, in_seconds
 
 ALERT_ID = "camps"
 
@@ -19,7 +19,7 @@ def tick(state: Any) -> None:
         return
 
     now = state.clock()
-    moment = next_after(settings.CAMP_FIRST, settings.CAMP_PERIOD, now)
+    moment = current_or_next(settings.CAMP_FIRST, settings.CAMP_PERIOD, now)
     if moment is None:
         state.remove(ALERT_ID)
         return

@@ -22,8 +22,8 @@ GSI_CFG_FILE_NAME = "gamestate_integration_overlay.cfg"
 DOTA_DIR = os.environ.get("DOTA_DIR", "")   # можно задать руками, чтобы не искать Steam
 DOTA_DIR_NAMES = ("dota 2 beta", "dota 2")
 STEAM_REGISTRY = (
-    (r"Software\\Valve\\Steam", "SteamPath"),
-    (r"SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),
+    (r"Software\Valve\Steam", "SteamPath"),
+    (r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
 )
 STEAM_LIBRARIES_FILE = "steamapps/libraryfolders.vdf"
 
@@ -81,8 +81,8 @@ MAX_ALERTS = 2                    # максимум строк-блоков о�
 RUNE_BOUNTY_FIRST = 0
 RUNE_BOUNTY_PERIOD = 120
 RUNE_POWER_FIRST = 6 * 60
-RUNE_POWER_PERIOD = 120
 RUNE_POWER_LAST = 40 * 60         # после 40:00 пауэр-руны не появляются
+RUNE_POWER_PERIOD = 120
 RUNE_ARCANE_FIRST = 30 * 60
 RUNE_ARCANE_PERIOD = 240
 RUNE_ARCANE_LAST = 58 * 60        # ВНИМАНИЕ: проверь на своей версии, можно поставить 3600

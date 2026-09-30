@@ -22,8 +22,8 @@ GSI_CFG_FILE_NAME = "gamestate_integration_overlay.cfg"
 DOTA_DIR = os.environ.get("DOTA_DIR", "")   # можно задать руками, чтобы не искать Steam
 DOTA_DIR_NAMES = ("dota 2 beta", "dota 2")
 STEAM_REGISTRY = (
-    (r"Software\Valve\Steam", "SteamPath"),
-    (r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+    (r"Software\\Valve\\Steam", "SteamPath"),
+    (r"SOFTWARE\\WOW6432Node\\Valve\\Steam", "InstallPath"),
 )
 STEAM_LIBRARIES_FILE = "steamapps/libraryfolders.vdf"
 
@@ -94,11 +94,15 @@ RUNE_NAMES = {
 }
 
 # ----------------------------------------------------------------- день/ночь
-NIGHT_START = 5 * 60              # ночь начинается на 5:00
-NIGHT_END = 10 * 60               # рассвет на 10:00
+# Цикл 10 мин (5 день + 5 ночь). Первая ночь на 5:00, дальше 15:00, 25:00…
+# Константы NIGHT_START/NIGHT_END оставлены для совместимости; таймер считает
+# повторяющийся цикл сам (см. timers/daynight.py).
+NIGHT_START = 5 * 60              # первая ночь на 5:00
+NIGHT_END = 10 * 60               # первый рассвет на 10:00
 DAYNIGHT_LEAD_SECONDS = 15.0
-NIGHT_LINGER = 6.0                 # сколько секунд висит плашка "Ночь" после её начала
-SHOW_WHOLE_NIGHT = False           # True = держать плашку "Ночь" всю ночь до рассвета
+NIGHT_LINGER = 20.0               # плашка «Ночь» после начала (fallback без GSI daytime)
+DAY_LINGER = 5.0                  # короткая плашка «День» сразу после рассвета
+SHOW_WHOLE_NIGHT = True            # True = держать «Ночь» всю ночь (рекомендуется)
 
 # ----------------------------------------------------------------- кемпы
 CAMP_FIRST = 0

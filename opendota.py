@@ -1,7 +1,4 @@
-"""Фоновый кэш OpenDota: публичные матчапы героев (не в tick таймеров).
-
-Только HTTPS к api.opendota.com. Никакого чтения памяти игры.
-"""
+"""Фоновый кэш OpenDota: публичные матчапы героев (не в tick таймеров)."""
 
 from __future__ import annotations
 
@@ -17,13 +14,11 @@ from typing import Any
 import settings
 
 LOGGER = logging.getLogger("dota.opendota")
-
 _lock = threading.RLock()
 _heroes_by_name: dict[str, dict[str, Any]] = {}
 _matchups: dict[int, list[dict[str, Any]]] = {}
 _fetched_at: dict[int, float] = {}
 _started = False
-
 _CACHE_DIR = Path(__file__).resolve().parent / "logs" / "opendota_cache"
 
 
@@ -51,9 +46,6 @@ def _ensure_heroes() -> None:
             name = str(h.get("name") or "")
             if name:
                 mapping[name] = h
-            loc = str(h.get("localized_name") or "").lower()
-            if loc:
-                mapping[f"loc:{loc}"] = h
     with _lock:
         _heroes_by_name = mapping
     LOGGER.info("OpenDota: загружено героев %s", len(mapping))
@@ -87,19 +79,13 @@ def prefetch_matchups(hero_id: int) -> None:
     try:
         data = _get_json(f"{settings.OPENDOTA_BASE}/heroes/{hero_id}/matchups")
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        LOGGER.warning("OpenDota matchups %s: %s", hero_id, exc)
+        LOGGER.warning("OpenDota matchups %s: %s", hero_id, exp if False else exc)
         return
     if not isinstance(data, list):
         return
     with _lock:
         _matchups[hero_id] = data
         _fetched_at[hero_id] = now
-    try:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        (_CACHE_DIR / f"matchups_{hero_id}.json").write_text(
-            json.dumps(data)[:200_000], encoding="utf-8")
-    except OSError:
-        pass
 
 
 def best_counters_for_enemy(enemy_hero_id: int, limit: int = 3) -> list[dict[str, Any]]:
@@ -114,8 +100,7 @@ def best_counters_for_enemy(enemy_hero_id: int, limit: int = 3) -> list[dict[str
         wins = int(row.get("wins") or 0)
         if games < settings.COUNTER_MIN_MATCHES:
             continue
-        wr = wins / games
-        scored.append((wr, row))
+        scored.append((wins / games, row))
     scored.sort(key=lambda x: x[0])
     result = []
     for wr, row in scored[:limit]:
@@ -126,12 +111,9 @@ def best_counters_for_enemy(enemy_hero_id: int, limit: int = 3) -> list[dict[str
                 if int(meta.get("id") or -1) == hid:
                     name = str(meta.get("localized_name") or "")
                     break
-        result.append({
-            "hero_id": hid,
-            "name": name or str(hid),
-            "enemy_winrate": round(wr * 100, 1),
-            "games": int(row.get("games_played") or 0),
-        })
+        result.append({"hero_id": hid, "name": name or str(hid),
+                       "enemy_winrate": round(wr * 100, 1),
+                       "games": int(row.get("games_played") or 0)})
     return result
 
 
@@ -150,10 +132,17 @@ def start_background(game_state: Any) -> None:
                     mid = hero_id_from_gsi_name(me)
                     if mid:
                         prefetch_matchups(mid)
-                    for enemy in game_state.visible_enemies():
-                        eid = hero_id_from_gsi_name(str(enemy.get("name") or ""))
-                        if eid:
-                            prefetch_matchups(eid)
+                    # враги из сырого payload (без новых методов state)
+                    enemies = game_state.payload().get("enemies")
+                    if isinstance(enemies, dict):
+                        for entry in enemies.values():
+                            if not isinstance(entry, dict):
+                                continue
+                            hero = entry.get("hero") if isinstance(entry.get("hero"), dict) else entry
+                            name = str((hero or {}).get("name") or entry.get("name") or "")
+                            eid = hero_id_from_gsi_name(name)
+                            if eid:
+                                prefetch_matchups(eid)
             except Exception:
                 LOGGER.exception("OpenDota background")
             time.sleep(15.0)

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 import settings
-from timers._util import ceil_int, current_or_next, in_seconds
+from timers._util import ceil_int, in_seconds, next_after
 
 ALERT_ID = "runes"
 
@@ -17,17 +17,17 @@ def _next_runes(now: float) -> tuple[list[str], float] | None:
     """Какие руны появятся следующими и через сколько. Одновременные - склеиваем."""
     candidates: list[tuple[str, float]] = []
 
-    moment = current_or_next(settings.RUNE_BOUNTY_FIRST, settings.RUNE_BOUNTY_PERIOD, now)
+    moment = next_after(settings.RUNE_BOUNTY_FIRST, settings.RUNE_BOUNTY_PERIOD, now)
     if moment is not None:
         candidates.append(("bounty", moment))
 
-    moment = current_or_next(settings.RUNE_POWER_FIRST, settings.RUNE_POWER_PERIOD,
-                             now, settings.RUNE_POWER_LAST)
+    moment = next_after(settings.RUNE_POWER_FIRST, settings.RUNE_POWER_PERIOD,
+                        now, settings.RUNE_POWER_LAST)
     if moment is not None:
         candidates.append(("power", moment))
 
-    moment = current_or_next(settings.RUNE_ARCANE_FIRST, settings.RUNE_ARCANE_PERIOD,
-                             now, settings.RUNE_ARCANE_LAST)
+    moment = next_after(settings.RUNE_ARCANE_FIRST, settings.RUNE_ARCANE_PERIOD,
+                        now, settings.RUNE_ARCANE_LAST)
     if moment is not None:
         candidates.append(("arcane", moment))
 
@@ -59,4 +59,4 @@ def tick(state: Any) -> None:
     names = " / ".join(settings.RUNE_NAMES.get(kind, kind) for kind in kinds)
     urgent = remaining <= settings.URGENT_SECONDS
     tail = "СЕЙЧАС" if urgent else in_seconds(remaining)
-    state.upsert(ALERT_ID, f"Руна: {names}\n{tail}", urgent=urgent)
+    state.upsert(ALERT_ID, f"Руна: {names}\n{tail}", urgent=urgent, event_in=remaining)

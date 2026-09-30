@@ -23,7 +23,8 @@ def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
         if scroll["charges"] <= 0:
             state.upsert(TP_ALERT_ID, "Свиток ТП кончился\nкупи новый", urgent=True)
         elif scroll["cooldown"] > settings.SHOPPING_MIN_COOLDOWN:
-            state.upsert(TP_ALERT_ID, f"Свиток ТП на откате\n{ceil_int(scroll['cooldown'])} с")
+            state.upsert(TP_ALERT_ID, f"Свиток ТП на откате\n{ceil_int(scroll['cooldown'])} с",
+                         event_in=scroll["cooldown"])
         else:
             state.remove(TP_ALERT_ID)
         return
@@ -31,7 +32,7 @@ def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
     # свитка нет - значит ТП у героя как способность (Ио, Чен, Венге, Пугна...)
     cooldown = state.cooldown_by_name(settings.TELEPORT_ABILITY_NEEDLE)
     if cooldown > settings.SHOPPING_MIN_COOLDOWN:
-        state.upsert(TP_ALERT_ID, f"ТП на кулдауне\n{ceil_int(cooldown)} с")
+        state.upsert(TP_ALERT_ID, f"ТП на кулдауне\n{ceil_int(cooldown)} с", event_in=cooldown)
     else:
         state.remove(TP_ALERT_ID)
 
@@ -39,7 +40,8 @@ def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
 def _tick_courier(state: Any) -> None:
     cooldown = state.cooldown_by_name(settings.COURIER_ABILITY_NEEDLE)
     if cooldown > settings.SHOPPING_MIN_COOLDOWN:
-        state.upsert(COURIER_ALERT_ID, f"Курьер на кулдауне\n{ceil_int(cooldown)} с")
+        state.upsert(COURIER_ALERT_ID, f"Курьер на кулдауне\n{ceil_int(cooldown)} с",
+                     event_in=cooldown)
     else:
         state.remove(COURIER_ALERT_ID)
 
@@ -55,7 +57,10 @@ def _tick_wards(state: Any, items: dict[str, dict[str, Any]]) -> None:
     text = f"Варды кончились\n{', '.join(empty)}"
     restock = state.ward_purchase_cooldown()
     if restock > settings.URGENT_SECONDS:
-        text = f"Варды кончились\nмагазин через {ceil_int(restock)} с"
+        # отсчёт реальный - до восстановления вардов в магазине
+        state.upsert(WARD_ALERT_ID, f"Варды кончились\nмагазин через {ceil_int(restock)} с",
+                     urgent=True, event_in=restock)
+        return
     state.upsert(WARD_ALERT_ID, text, urgent=True)
 
 

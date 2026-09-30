@@ -33,8 +33,10 @@ class Alert:
     created_at: float              # time.monotonic()
     expires_at: float
     urgent: bool = False
+    event_in: float | None = None  # секунд до события; None = отсчёт не рисуем
 
     def remaining(self, now: float) -> float:
+        """Сколько подсказка ещё живёт без обновления (страховка от залипания)."""
         return max(0.0, self.expires_at - now)
 
 
@@ -292,12 +294,19 @@ class GameState:
 
     # ------------------------------------------------------------ подсказки
     def upsert(self, alert_id: str, text: str, ttl: float | None = None,
-                urgent: bool = False) -> None:
-        """Создать или обновить подсказку. Таймеры зовут это каждый тик."""
+                urgent: bool = False, event_in: float | None = None) -> None:
+        """Создать или обновить подсказку. Таймеры зовут это каждый тик.
+
+        event_in - секунды до события: overlay рисует их у правого края карточки.
+                   None = событие не впереди (например «Ночь / врага видно»), отсчёта нет.
+        ttl      - сколько подсказка живёт без обновления, страховка от залипания.
+                   На экран не выводится, поэтому не путать с event_in.
+        """
         now = time.monotonic()
         life = settings.ALERT_TTL if ttl is None else ttl
         with self._lock:
-            self._alerts[alert_id] = Alert(alert_id, text, now, now + life, urgent)
+            self._alerts[alert_id] = Alert(alert_id, text, now, now + life, urgent,
+                                           None if event_in is None else max(0.0, event_in))
 
     def remove(self, alert_id: str) -> None:
         with self._lock:
@@ -321,7 +330,10 @@ class GameState:
                     "id": alert.id,
                     "text": alert.text,
                     "urgent": alert.urgent,
-                    "remaining": left,
+                    "event_in": alert.event_in,   # None = отсчёт у правого края не рисуем
+                    "ttl_left": left,             # остаток жизни подсказки, для затухания
                 })
-        alive.sort(key=lambda a: (0 if a["urgent"] else 1, a["remaining"]))
+        # срочные сверху, внутри группы - ближайшие события
+        alive.sort(key=lambda a: (0 if a["urgent"] else 1,
+                                  a["event_in"] if a["event_in"] is not None else float("inf")))
         return alive[: settings.MAX_ALERTS]

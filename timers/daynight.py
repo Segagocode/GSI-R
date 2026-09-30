@@ -44,13 +44,15 @@ def _by_clock(state: Any, now: float) -> None:
     start, end = settings.NIGHT_START, settings.NIGHT_END
     lead = settings.DAYNIGHT_LEAD_SECONDS
     if start - lead <= now < start:
-        text, urgent = _hint("Ночь", start - now)
-        state.upsert(ALERT_ID, text, urgent=urgent)
+        left = start - now
+        text, urgent = _hint("Ночь", left)
+        state.upsert(ALERT_ID, text, urgent=urgent, event_in=left)
     elif start <= now < end:
         _night_block(state, now)
     elif now < end + lead:
-        text, urgent = _hint("Рассвет", max(0.0, end - now))
-        state.upsert(ALERT_ID, text, urgent=urgent)
+        left = max(0.0, end - now)
+        text, urgent = _hint("Рассвет", left)
+        state.upsert(ALERT_ID, text, urgent=urgent, event_in=left)
     else:
         state.remove(ALERT_ID)
 
@@ -80,10 +82,12 @@ def tick(state: Any) -> None:
     # сейчас день: предупреждаем по часам перед ночью и перед рассветом
     start, end, lead = settings.NIGHT_START, settings.NIGHT_END, settings.DAYNIGHT_LEAD_SECONDS
     if start - lead <= now < start:
-        text, urgent = _hint("Ночь", start - now)
-        state.upsert(ALERT_ID, text, urgent=urgent)
+        left = start - now
+        text, urgent = _hint("Ночь", left)
+        state.upsert(ALERT_ID, text, urgent=urgent, event_in=left)
     elif end - lead <= now < end:
-        text, urgent = _hint("Рассвет", max(0.0, end - now))
-        state.upsert(ALERT_ID, text, urgent=urgent)
+        left = max(0.0, end - now)
+        text, urgent = _hint("Рассвет", left)
+        state.upsert(ALERT_ID, text, urgent=urgent, event_in=left)
     else:
         state.remove(ALERT_ID)

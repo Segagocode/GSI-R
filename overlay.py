@@ -156,7 +156,7 @@ class OverlayWidget(QWidget):
 
         for alert in alerts:
             urgent = alert["urgent"]
-            fading = alert["remaining"] <= 1.0
+            fading = alert["ttl_left"] <= 1.0
             alpha = 90 if fading else base_alpha
             accent = QColor(settings.ACCENT_URGENT if urgent else settings.ACCENT_NORMAL)
             accent.setAlpha(alpha)
@@ -189,11 +189,12 @@ class OverlayWidget(QWidget):
                 painter.drawText(pad + 14, int(ty), line)
                 ty += line_h
 
-            painter.setFont(self._font_small)
-            painter.setPen(accent)
-            painter.drawText(pad, int(y), right - pad - 8, height,
-                             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                             _fmt_remaining(alert["remaining"]))
+            if alert["event_in"] is not None:            # отсчёт до события; None = не рисуем
+                painter.setFont(self._font_small)
+                painter.setPen(accent)
+                painter.drawText(pad, int(y), right - pad - 8, height,
+                                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                                 _fmt_remaining(alert["event_in"]))
             y += height + pad
 
 

@@ -1,7 +1,7 @@
 """Хранилище состояния игры и активных подсказок.
 
 Сюда пишет сервер (сырые данные GSI), отсюда читают таймеры и overlay.
-Модуль ничего не знает ни про flask, ни про tkinter, ни про таймеры.
+Модуль ничего не знает ни про flask, ни про GUI (tkinter/PyQt), ни про таймеры.
 
 Схема GSI проверена на живой игре (проба героя), пример пакета - logs/gsi_last.json:
   map:     game_state, game_time, clock_time, daytime, nightstalker_night, ward_purchase_cooldown

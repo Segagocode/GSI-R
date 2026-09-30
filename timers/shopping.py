@@ -20,16 +20,26 @@ WARD_ALERT_ID = "shopping:wards"
 def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
     scroll = items.get(settings.TP_ITEM_NAME)
     if scroll is not None:
-        if scroll["charges"] <= 0:
+        charges = int(scroll["charges"])
+        if charges <= 0:
             state.upsert(TP_ALERT_ID, "Свиток ТП кончился\nкупи новый", urgent=True)
         elif scroll["cooldown"] > settings.SHOPPING_MIN_COOLDOWN:
             state.upsert(TP_ALERT_ID, f"Свиток ТП на откате\n{ceil_int(scroll['cooldown'])} с",
                          event_in=scroll["cooldown"])
         else:
-            state.remove(TP_ALERT_ID)
+            # Свиток готов — одна из самых полезных подсказок:
+            # игрок часто просто не замечает, что уже можно тпшнуться.
+            # Не urgent, чтобы не вытеснять руны/кемпы; event_in=None.
+            if charges == 1:
+                text = "Свиток ТП готов\n1 заряд"
+            else:
+                text = f"Свиток ТП готов\n{charges} заряда"
+            state.upsert(TP_ALERT_ID, text)
         return
 
     # свитка нет - значит ТП у героя как способность (Ио, Чен, Венге, Пугна...)
+    # «готов» для способности не показываем: у многих героев она доступна почти всегда,
+    # плашка бы висела постоянно и занимала слот.
     cooldown = state.cooldown_by_name(settings.TELEPORT_ABILITY_NEEDLE)
     if cooldown > settings.SHOPPING_MIN_COOLDOWN:
         state.upsert(TP_ALERT_ID, f"ТП на кулдауне\n{ceil_int(cooldown)} с", event_in=cooldown)

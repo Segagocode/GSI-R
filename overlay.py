@@ -68,6 +68,20 @@ def make_click_through(root: tk.Tk) -> None:
         LOGGER.exception("не удалось сделать окно click-through")
 
 
+def _window_geometry(root: tk.Tk) -> str:
+    """Строго справа: X = ширина экрана - ширина окна - отступ.
+
+    Экран берём у самого tkinter (winfo_screenwidth) - надёжнее константы в
+    settings; WINDOW_RIGHT_EDGE остаётся запасным значением.
+    """
+    try:
+        screen_w = root.winfo_screenwidth()
+    except Exception:                        # noqa: BLE001 - до появления окна может не быть
+        screen_w = settings.WINDOW_RIGHT_EDGE
+    x = max(0, screen_w - settings.WINDOW_WIDTH - settings.WINDOW_MARGIN)
+    return f"{settings.WINDOW_WIDTH}x{settings.WINDOW_HEIGHT}+{x}+{settings.WINDOW_Y}"
+
+
 def _make_window() -> tk.Tk:
     root = tk.Tk()
     root.title("dota overlay")
@@ -76,8 +90,7 @@ def _make_window() -> tk.Tk:
     root.attributes("-alpha", settings.WINDOW_ALPHA)  # полупрозрачно
     root.configure(bg=settings.BG_COLOR)
     root.resizable(False, False)
-    root.geometry(f"{settings.WINDOW_WIDTH}x{settings.WINDOW_HEIGHT}"
-                  f"+{settings.WINDOW_X}+{settings.WINDOW_Y}")
+    root.geometry(_window_geometry(root))
     root.update_idletasks()
     make_click_through(root)
     return root
@@ -94,34 +107,66 @@ def _debug_lines(game_state: Any) -> str:
             f"  пакет={game_state.last_packet_age():.1f}с назад")
 
 
+def _fmt_remaining(seconds: float) -> str:
+    """'7с' / '1:23' - компактный обратный отсчёт в углу карточки."""
+    whole = max(0, int(round(seconds)))
+    if whole < 60:
+        return f"{whole}с"
+    return f"{whole // 60}:{whole % 60:02d}"
+
+
 def _draw(cv: tk.Canvas, alerts: list[dict[str, Any]], debug_text: str) -> None:
+    """Карточки у правого края: акцентная полоса + заголовок/детали, отсчёт справа.
+
+    Текст больше не скачет по центру: каждая подсказка - плашка фиксированной
+    ширины, выровненная по правому краю окна.
+    """
     cv.delete("all")
-    font = (settings.FONT_FAMILY, settings.FONT_SIZE, "bold")
-    line_h = settings.FONT_SIZE * 1.3
-    gap = settings.FONT_SIZE * 0.35
+    pad = settings.PANEL_PAD
+    font_title = (settings.FONT_FAMILY, settings.FONT_SIZE, "bold")
+    font_small = (settings.FONT_FAMILY, max(9, settings.FONT_SIZE - 8), "")
+    w = settings.WINDOW_WIDTH
+    right = w - pad                      # внутренний правый край
+    line_h = int(settings.FONT_SIZE * 1.25)
 
     if debug_text:
-        cv.create_text(8, 8, anchor="nw", text=debug_text,
-                       font=(settings.FONT_FAMILY, max(10, settings.FONT_SIZE // 3)),
-                       fill="#7fd4ff", justify="left")
+        cv.create_text(right, 6, anchor="ne", text=debug_text,
+                       font=font_small, fill="#7fd4ff", justify="right")
 
-    heights = [line_h * (alert["text"].count("\n") + 1) for alert in alerts]
-    total = sum(heights) + gap * max(0, len(alerts) - 1)
-    y = (settings.WINDOW_HEIGHT - total) / 2
-    center_x = settings.WINDOW_WIDTH / 2
+    card_h = lambda a: line_h * (a["text"].count("\n") + 1) + pad
+    total = sum(card_h(a) for a in alerts) + pad * max(0, len(alerts) - 1)
+    y = max(28 if debug_text else pad, (settings.WINDOW_HEIGHT - total) / 2)
 
-    for alert, height in zip(alerts, heights):
-        color = settings.URGENT_COLOR if alert["urgent"] else settings.TEXT_COLOR
+    for alert in alerts:
+        urgent = alert["urgent"]
+        height = card_h(alert)
+        accent = settings.ACCENT_URGENT if urgent else settings.ACCENT_NORMAL
         dim = "gray50" if alert["remaining"] <= 1.0 else None  # гаснет перед исчезновением
-        center_y = y + height / 2
-        text = alert["text"]
-        # тень под текстом = читаемость на любом фоне игры
-        cv.create_text(center_x + settings.SHADOW_OFFSET, center_y + settings.SHADOW_OFFSET,
-                       text=text, font=font, fill=settings.SHADOW_COLOR,
-                       justify="center", stipple=dim)
-        cv.create_text(center_x, center_y, text=text, font=font, fill=color,
-                       justify="center", stipple=dim)
-        y += height + gap
+
+        cv.create_rectangle(pad, y, right, y + height, fill=settings.BG_COLOR,
+                            outline=accent, width=1, stipple=dim)
+        cv.create_rectangle(pad, y, pad + 4, y + height, fill=accent,
+                            outline="", stipple=dim)
+
+        lines = alert["text"].split("\n")
+        ty = y + pad // 2 + line_h // 2
+        for i, line in enumerate(lines):
+            size = font_title if i == 0 else font_small
+            color = (settings.URGENT_COLOR if urgent else settings.TEXT_COLOR) \
+                if i == 0 else ("#b9b9c2" if not urgent else settings.URGENT_COLOR)
+            x_text = pad + 14
+            # тень под текстом = читаемость на любом фоне игры
+            cv.create_text(x_text + settings.SHADOW_OFFSET, ty + settings.SHADOW_OFFSET,
+                           anchor="w", text=line, font=size, fill=settings.SHADOW_COLOR,
+                           stipple=dim)
+            cv.create_text(x_text, ty, anchor="w", text=line, font=size,
+                           fill=color, stipple=dim)
+            ty += line_h
+
+        cv.create_text(right - 8, y + height // 2, anchor="e",
+                       text=_fmt_remaining(alert["remaining"]),
+                       font=font_small, fill=accent, stipple=dim)
+        y += height + pad
 
 
 def run(game_state: Any, on_tick: Callable[[], None] | None = None,

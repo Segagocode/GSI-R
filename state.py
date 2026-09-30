@@ -56,6 +56,9 @@ class GameState:
         self._game_state = ""
         self._clock_anchor: float | None = None   # time.monotonic(), когда было 0:00
         self._time_source = "local"
+        self._paused_shift = 0.0                  # секунды, набежавшие во время пауз
+        self._was_paused = False                  # был ли предыдущий пакет с paused
+        self._pause_started_at = 0.0              # monotonic, когда началась текущая пауза
 
         self._alerts: dict[str, Alert] = {}
 
@@ -64,26 +67,55 @@ class GameState:
         """Вызывается сервером на каждый POST от Dota (их ~10 в секунду)."""
         with self._lock:
             now = time.monotonic()
+            dt = now - self._last_packet_at if self._last_packet_at else 0.0
             self._payload = payload if isinstance(payload, dict) else {}
             self._has_payload = True
             self._last_packet_at = now
 
             game_map = self._payload.get("map") or {}
             game_state = str(game_map.get("game_state") or "")
+            paused_now = bool(game_map.get("paused"))
+
+            # На паузе игра замораживает game_time, а monotonic идёт - копить эти
+            # секунды и вычитать из часов, иначе руны/кемпры уедут вперёд.
+            if paused_now and not self._was_paused:
+                self._pause_started_at = now
+            elif not paused_now and self._was_paused:
+                self._paused_shift += now - self._pause_started_at
+                if self._time_source == "local" and self._clock_anchor is not None:
+                    # local-часы тоже стояли на паузе - сдвигаем якорь на её длительность
+                    self._clock_anchor += now - self._pause_started_at
+            self._was_paused = paused_now
+
             gtime = game_map.get("game_time", game_map.get("clock_time"))
             gtime = float(gtime) if isinstance(gtime, (int, float)) and not isinstance(gtime, bool) else None
 
+            # Смена фазы матча: на входе GAME_IN_PROGRESS обнуляем local-часы,
+            # чтобы prep-время разной длительности (Turbo/AllPick) не въедалось
+            # в тайминги рун/кемпов. GSI-часы трогать не нужно - там prep это
+            # отрицательный game_time, а нулевой якорь ставит сама игра на gtime=0.
+            entered_game = (GAME_STATE_IN_PROGRESS in game_state
+                            and GAME_STATE_IN_PROGRESS not in self._game_state)
+            if entered_game and gtime is None:
+                self._clock_anchor = now
+                self._time_source = "local"
+
             if gtime is not None and gtime >= 0:
-                # Время присылает сама игра (на паузе не идёт) - доверяем ей
-                self._clock_anchor = now - gtime
+                # Время присылает сама игра (на паузе не идёт) - доверяем ей.
+                # Вычитаем и завершённые паузы, и текущую: monotonic на паузе идёт,
+                # а game_time стоит - без этого якорь уехал бы вперёд.
+                pause_total = self._paused_shift
+                if paused_now:
+                    pause_total += now - self._pause_started_at
+                self._clock_anchor = now - gtime - pause_total
                 self._time_source = "gsi"
             else:
-                # времени нет: считаем сами от первого пакета или смены состояния
-                changed = bool(self._game_state and game_state
-                               and game_state != self._game_state)
-                if self._clock_anchor is None or changed:
-                    self._clock_anchor = now
-                self._time_source = "local"
+                # Времени от игры нет: local-часы идут сами, но только во время
+                # игры и не на паузе (иначе руны/кемпры уедут вперёд).
+                in_progress = GAME_STATE_IN_PROGRESS in game_state
+                if self._time_source == "local" and in_progress \
+                        and not paused_now and not self._was_paused:
+                    self._clock_anchor += dt
 
             self._game_state = game_state
             player = self._payload.get("player") or {}
@@ -95,11 +127,16 @@ class GameState:
 
     # ------------------------------------------------------------ время и фаза
     def clock(self) -> float:
-        """Секунды от начала игры."""
+        """Секунды от начала игры. На паузе стоит (игра тоже её не считает)."""
         with self._lock:
             if not self._has_payload or self._clock_anchor is None:
                 return 0.0
-            return max(0.0, time.monotonic() - self._clock_anchor)
+            now = time.monotonic()
+            # В local-режиме якорь уже сдвигают on_pause_end/pause_now - не вычитать их снова.
+            shift = self._paused_shift if self._time_source == "gsi" else 0.0
+            extra_pause = (now - self._pause_started_at
+                           if self._was_paused and self._time_source == "gsi" else 0.0)
+            return max(0.0, now - self._clock_anchor - shift - extra_pause)
 
     def clock_source(self) -> str:
         with self._lock:

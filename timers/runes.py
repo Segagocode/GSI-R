@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 import settings
-from timers._util import ceil_int, in_seconds, next_after
+from timers._util import in_seconds, next_after
 
 ALERT_ID = "runes"
 
@@ -59,4 +59,4 @@ def tick(state: Any) -> None:
     names = " / ".join(settings.RUNE_NAMES.get(kind, kind) for kind in kinds)
     urgent = remaining <= settings.URGENT_SECONDS
     tail = "СЕЙЧАС" if urgent else in_seconds(remaining)
-    state.upsert(ALERT_ID, f"Руна: {names}\n{tail}", urgent=urgent, event_in=remaining)
+    state.upsert(ALERT_ID, f"Руны: {names}\n{tail}", urgent=urgent, event_in=remaining)

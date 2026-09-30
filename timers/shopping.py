@@ -17,6 +17,16 @@ COURIER_ALERT_ID = "shopping:courier"
 WARD_ALERT_ID = "shopping:wards"
 
 
+def _charges_label(n: int) -> str:
+    """1 заряд / 2 заряда / 5 зарядов."""
+    n = abs(int(n))
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} заряд"
+    if 2 <= n % 10 <= 4 and not (12 <= n % 100 <= 14):
+        return f"{n} заряда"
+    return f"{n} зарядов"
+
+
 def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
     scroll = items.get(settings.TP_ITEM_NAME)
     if scroll is not None:
@@ -30,11 +40,7 @@ def _tick_tp(state: Any, items: dict[str, dict[str, Any]]) -> None:
             # Свиток готов — одна из самых полезных подсказок:
             # игрок часто просто не замечает, что уже можно тпшнуться.
             # Не urgent, чтобы не вытеснять руны/кемпы; event_in=None.
-            if charges == 1:
-                text = "Свиток ТП готов\n1 заряд"
-            else:
-                text = f"Свиток ТП готов\n{charges} заряда"
-            state.upsert(TP_ALERT_ID, text)
+            state.upsert(TP_ALERT_ID, f"Свиток ТП готов\n{_charges_label(charges)}")
         return
 
     # свитка нет - значит ТП у героя как способность (Ио, Чен, Венге, Пугна...)

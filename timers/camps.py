@@ -30,5 +30,5 @@ def tick(state: Any) -> None:
         return
 
     urgent = remaining <= settings.URGENT_SECONDS
-    state.upsert(ALERT_ID, f"Кемпы\n{'СПАВН' if urgent else in_seconds(remaining)}",
-                 urgent=urgent, event_in=remaining)
+    tail = "СТОК" if urgent else in_seconds(remaining)
+    state.upsert(ALERT_ID, f"Кемпы\n{tail}", urgent=urgent, event_in=remaining)

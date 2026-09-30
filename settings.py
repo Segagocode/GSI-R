@@ -59,20 +59,22 @@ HIDE_WHEN_NOT_IN_GAME = True
 DEBUG = False
 
 # ----------------------------------------------------------------- подсказки
-URGENT_SECONDS = 3.0
-ALERT_TTL = 8.0
-TICK_INTERVAL = 0.2
-MAX_ALERTS = 3
-HISTORY_MAX_EVENTS = 64
-WINDOW_MERGE_SECONDS = 20.0
-WINDOW_LEAD_SECONDS = 15.0
+# За сколько секунд предупреждать - у каждого таймера своё:
+# RUNE_LEAD_SECONDS, DAYNIGHT_LEAD_SECONDS, CAMP_LEAD_SECONDS.
+URGENT_SECONDS = 3.0              # с этого момента писать "СЕЙЧАС"
+ALERT_TTL = 8.0                   # сколько секунд живёт подсказка после показа
+TICK_INTERVAL = 0.2               # как часто опрашивать таймеры (секунды)
+MAX_ALERTS = 2                    # максимум строк-блоков одновременно
+HISTORY_MAX_EVENTS = 64           # событий в истории текущего матча
+WINDOW_MERGE_SECONDS = 20.0       # склеивать руны+кемпы, если ближе N с
+WINDOW_LEAD_SECONDS = 15.0        # за сколько показывать объединённое окно
 
 # ----------------------------------------------------------------- руны
 RUNE_BOUNTY_FIRST = 0
 RUNE_BOUNTY_PERIOD = 120
 RUNE_POWER_FIRST = 6 * 60
 RUNE_POWER_PERIOD = 120
-RUNE_POWER_LAST = 40 * 60
+RUNE_POWER_LAST = 40 * 60         # после 40:00 пауэр-руны не появляются
 RUNE_ARCANE_FIRST = 30 * 60
 RUNE_ARCANE_PERIOD = 240
 RUNE_ARCANE_LAST = 58 * 60

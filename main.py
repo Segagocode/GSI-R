@@ -17,6 +17,7 @@ import server
 import settings
 import state
 import timers
+import opendota
 
 LOGGER = logging.getLogger("dota")
 
@@ -86,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     server.start_in_thread(game_state)
+    opendota.start_background(game_state)
     threading.Thread(target=_watch_first_packet, args=(game_state, {}),
                      name="first-packet", daemon=True).start()
 

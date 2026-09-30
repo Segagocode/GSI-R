@@ -3,14 +3,8 @@
 Модуль только рисует. Он берёт готовый список подсказок из state и не знает,
 откуда они взялись и что за таймер их создал.
 
-Рендер — PyQt6 (кроссплатформенно: Windows / Linux / macOS). Прозрачность окна
-обеспечивается атрибутом WA_TranslucentBackground (без setWindowOpacity!),
-карточки рисуются в paintEvent через QPainter.
-
-Click-through сделан платформенно:
-  * Windows: WS_EX_TRANSPARENT | WS_EX_NOACTIVATE через ctypes;
-  * Linux/X11: WA_TransparentForMouseEvents + тип Tool/BypassWM;
-  * macOS: TODO — NSWindow.ignoresMouseEvents через pyobjc при реальном порте.
+Рендер — PyQt6. Прозрачность через WA_TranslucentBackground.
+Click-through: Windows ctypes / Linux WA_TransparentForMouseEvents.
 """
 
 from __future__ import annotations
@@ -27,15 +21,11 @@ from PyQt6.QtWidgets import QApplication, QWidget
 import settings
 
 LOGGER = logging.getLogger("dota.overlay")
-
 _STARTED = time.monotonic()
 
 
-# ------------------------------------------------------------------ click-through
 def _make_click_through_win(hwnd: int) -> None:
-    """Windows: WS_EX_TRANSPARENT + NOACTIVATE + TOOLWINDOW, чтобы клики шли в игру."""
     import ctypes
-
     GWL_EXSTYLE = -20
     WS_EX_TRANSPARENT = 0x00000020
     WS_EX_TOOLWINDOW = 0x00000080
@@ -43,19 +33,17 @@ def _make_click_through_win(hwnd: int) -> None:
     WS_EX_NOACTIVATE = 0x08000000
     HWND_TOPMOST = -1
     SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE = 0x0002, 0x0001, 0x0010
-
     user32 = ctypes.windll.user32
     if hasattr(user32, "SetWindowLongPtrW"):
         get_long, set_long = user32.GetWindowLongPtrW, user32.SetWindowLongPtrW
         long_ptr = ctypes.c_longlong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_long
-    else:  # 32-битная Windows
+    else:
         get_long, set_long = user32.GetWindowLongW, user32.SetWindowLongW
         long_ptr = ctypes.c_long
     get_long.argtypes = (ctypes.c_void_p, ctypes.c_int)
     get_long.restype = long_ptr
     set_long.argtypes = (ctypes.c_void_p, ctypes.c_int, long_ptr)
     set_long.restype = long_ptr
-
     style = get_long(hwnd, GWL_EXSTYLE)
     set_long(hwnd, GWL_EXSTYLE,
              style | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)
@@ -64,7 +52,6 @@ def _make_click_through_win(hwnd: int) -> None:
 
 
 def _apply_click_through(widget: QWidget) -> None:
-    """Платформенный click-through; на неизвестной платформе — тихий no-op."""
     if not settings.CLICK_THROUGH:
         return
     try:
@@ -72,14 +59,11 @@ def _apply_click_through(widget: QWidget) -> None:
             _make_click_through_win(int(widget.winId()))
         elif sys.platform.startswith("linux"):
             widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        # macOS: TODO — NSWindow.ignoresMouseEvents через pyobjc при реальном порте.
-    except Exception:                       # noqa: BLE001 — оверлей не должен умирать
+    except Exception:
         LOGGER.exception("не удалось включить click-through")
 
 
-# ------------------------------------------------------------------ формат
 def _fmt_remaining(seconds: float) -> str:
-    """'7с' / '1:23' — компактный обратный отсчёт в углу карточки."""
     whole = max(0, int(round(seconds)))
     if whole < 60:
         return f"{whole}с"
@@ -97,10 +81,7 @@ def _debug_lines(game_state: Any) -> str:
             f"  пакет={game_state.last_packet_age():.1f}с назад")
 
 
-# ------------------------------------------------------------------ виджет
 class OverlayWidget(QWidget):
-    """Прозрачное окно-плашка строго справа. paintEvent рисует карточки подсказок."""
-
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("dota overlay")
@@ -110,8 +91,6 @@ class OverlayWidget(QWidget):
         if sys.platform.startswith("linux"):
             flags |= Qt.WindowType.BypassWindowManagerHint
         self.setWindowFlags(flags)
-        # ВАЖНО: НЕ вызывать setWindowOpacity — фон уже прозрачный
-        # за счёт WA_TranslucentBackground; opacity удвоила бы полупрозрачность.
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setFixedSize(settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
         self._place_right()
@@ -123,9 +102,13 @@ class OverlayWidget(QWidget):
     def _place_right(self) -> None:
         screen = QApplication.primaryScreen().availableGeometry()
         x = max(0, screen.width() - settings.WINDOW_WIDTH - settings.WINDOW_MARGIN)
-        self.move(x, settings.WINDOW_Y)
+        if getattr(settings, "WINDOW_CENTER_Y", True) or getattr(settings, "WINDOW_Y", None) is None:
+            y = max(0, (screen.height() - settings.WINDOW_HEIGHT) // 2)
+        else:
+            y = int(settings.WINDOW_Y)
+        self.move(x, y)
 
-    def paintEvent(self, event) -> None:                      # noqa: N802 — Qt API
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         pad = settings.PANEL_PAD
@@ -139,12 +122,9 @@ class OverlayWidget(QWidget):
         total = sum(card_height(a) for a in alerts) + pad * max(0, len(alerts) - 1)
         y = max(28 if self.debug_text else pad,
                 (settings.WINDOW_HEIGHT - total) / 2)
-
         base_alpha = int(255 * settings.WINDOW_ALPHA)
-        # окно живёт и когда подсказок нет (DEBUG/HIDE_WHEN_NOT_IN_GAME=False)
         if not alerts and not self.debug_text:
             return
-
         if self.debug_text:
             dbg = QColor("#7fd4ff")
             dbg.setAlpha(base_alpha)
@@ -153,7 +133,6 @@ class OverlayWidget(QWidget):
             painter.drawText(self.rect().adjusted(0, 4, -pad, 0),
                              Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
                              self.debug_text)
-
         for alert in alerts:
             urgent = alert["urgent"]
             fading = alert["ttl_left"] <= 1.0
@@ -161,14 +140,12 @@ class OverlayWidget(QWidget):
             accent = QColor(settings.ACCENT_URGENT if urgent else settings.ACCENT_NORMAL)
             accent.setAlpha(alpha)
             height = card_height(alert)
-
             bg = QColor(settings.BG_COLOR)
             bg.setAlpha(alpha)
             painter.fillRect(pad, int(y), right - pad, height, bg)
             painter.setPen(QPen(accent, 1))
             painter.drawRect(pad, int(y), right - pad - 1, height - 1)
-            painter.fillRect(pad, int(y), 4, height, accent)   # акцентная полоса слева
-
+            painter.fillRect(pad, int(y), 4, height, accent)
             lines = alert["text"].split("\n")
             ty = y + pad // 2 + line_h
             for i, line in enumerate(lines):
@@ -183,13 +160,12 @@ class OverlayWidget(QWidget):
                 shadow = QColor(settings.SHADOW_COLOR)
                 shadow.setAlpha(alpha)
                 off = settings.SHADOW_OFFSET
-                painter.setPen(shadow)                          # тень = читаемость на фоне игры
+                painter.setPen(shadow)
                 painter.drawText(pad + 14 + off, int(ty + off), line)
                 painter.setPen(text_color)
                 painter.drawText(pad + 14, int(ty), line)
                 ty += line_h
-
-            if alert["event_in"] is not None:            # отсчёт до события; None = не рисуем
+            if alert["event_in"] is not None:
                 painter.setFont(self._font_small)
                 painter.setPen(accent)
                 painter.drawText(pad, int(y), right - pad - 8, height,
@@ -198,10 +174,8 @@ class OverlayWidget(QWidget):
             y += height + pad
 
 
-# ------------------------------------------------------------------ точка входа
 def run(game_state: Any, on_tick: Callable[[], None] | None = None,
         tick_interval: float | None = None) -> None:
-    """Запустить окно. on_tick вызывается каждый тик — это цикл таймеров из main."""
     interval = settings.TICK_INTERVAL if tick_interval is None else tick_interval
     app = QApplication.instance() or QApplication(sys.argv[:1])
     widget = OverlayWidget()
@@ -212,9 +186,9 @@ def run(game_state: Any, on_tick: Callable[[], None] | None = None,
         alerts: list[dict[str, Any]] = []
         try:
             if on_tick is not None:
-                on_tick()                     # упал тик — не показываем устаревшее
+                on_tick()
             alerts = game_state.active_alerts()
-        except Exception:                   # noqa: BLE001 — оверлей не должен умирать
+        except Exception:
             LOGGER.exception("ошибка в цикле отрисовки")
         visible = bool(alerts) or settings.DEBUG
         try:
@@ -224,12 +198,12 @@ def run(game_state: Any, on_tick: Callable[[], None] | None = None,
                     shown = False
             elif not shown:
                 widget.show()
-                _apply_click_through(widget)     # winId доступен после show()
+                _apply_click_through(widget)
                 shown = True
             widget.alerts = alerts
             widget.debug_text = _debug_lines(game_state) if settings.DEBUG else ""
             widget.update()
-        except Exception:                   # noqa: BLE001
+        except Exception:
             LOGGER.exception("ошибка показа окна")
 
     timer = QTimer(widget)

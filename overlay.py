@@ -141,6 +141,9 @@ class OverlayWidget(QWidget):
                 (settings.WINDOW_HEIGHT - total) / 2)
 
         base_alpha = int(255 * settings.WINDOW_ALPHA)
+        # окно живёт и когда подсказок нет (DEBUG/HIDE_WHEN_NOT_IN_GAME=False)
+        if not alerts and not self.debug_text:
+            return
 
         if self.debug_text:
             dbg = QColor("#7fd4ff")
@@ -205,11 +208,15 @@ def run(game_state: Any, on_tick: Callable[[], None] | None = None,
 
     def loop() -> None:
         nonlocal shown
+        alerts: list[dict[str, Any]] = []
         try:
             if on_tick is not None:
-                on_tick()
+                on_tick()                     # упал тик — не показываем устаревшее
             alerts = game_state.active_alerts()
-            visible = bool(alerts) or settings.DEBUG
+        except Exception:                   # noqa: BLE001 — оверлей не должен умирать
+            LOGGER.exception("ошибка в цикле отрисовки")
+        visible = bool(alerts) or settings.DEBUG
+        try:
             if not visible and settings.HIDE_WHEN_NOT_IN_GAME:
                 if shown:
                     widget.hide()
@@ -221,8 +228,8 @@ def run(game_state: Any, on_tick: Callable[[], None] | None = None,
             widget.alerts = alerts
             widget.debug_text = _debug_lines(game_state) if settings.DEBUG else ""
             widget.update()
-        except Exception:                   # noqa: BLE001 — оверлей не должен умирать
-            LOGGER.exception("ошибка в цикле отрисовки")
+        except Exception:                   # noqa: BLE001
+            LOGGER.exception("ошибка показа окна")
 
     timer = QTimer(widget)
     timer.timeout.connect(loop)

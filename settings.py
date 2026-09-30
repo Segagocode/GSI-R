@@ -48,10 +48,10 @@ GSI_CFG_HEARTBEAT = "30.0"
 GSI_CFG_URI_WITH_SCHEME = True
 
 # ----------------------------------------------------------------- окно
-# Правый край: доводим WINDOW_RIGHT_EDGE до ширины монитора (или ставим руками).
+# Позицию считает overlay по реальной ширине экрана (QScreen),
+# здесь только размеры и отступы.
 WINDOW_WIDTH = 360
 WINDOW_HEIGHT = 150
-WINDOW_RIGHT_EDGE = 1920          # правый край экрана; X = RIGHT_EDGE - WIDTH - MARGIN
 WINDOW_MARGIN = 12                # отступ от правого края и сверху
 WINDOW_Y = 60                     # верх окна по вертикали
 WINDOW_ALPHA = 0.92
@@ -64,7 +64,6 @@ BG_COLOR = "#0d0d12"              # фон плашки (окно полупро
 PANEL_PAD = 10                    # внутренние поля плашки
 ACCENT_NORMAL = "#3ddc84"         # левая полоска обычной подсказки
 ACCENT_URGENT = "#ff5a5a"         # левая полоска срочной подсказки
-BLOCK_GAP = 1.35                  # во сколько "выше шрифта" смещать блоки друг от друга
 SHADOW_OFFSET = 1
 CLICK_THROUGH = True              # клики проходят в игру (WS_EX_TRANSPARENT)
 HIDE_WHEN_NOT_IN_GAME = True     # прятать окно, когда нет подсказок
